@@ -2,6 +2,7 @@
 This module provides the :class:`NunchakuZImageDiTLoader` class for loading Nunchaku Z-Image models.
 """
 
+import logging
 import json
 
 import comfy.utils
@@ -11,6 +12,7 @@ from comfy.model_patcher import ModelPatcher
 
 from nunchaku.models.transformers.utils import patch_scale_key
 from nunchaku.utils import check_hardware_compatibility, get_precision_from_quantization_config
+from nunchaku.models.linear import SVDQW4A4Linear
 
 from ...model_configs.zimage import NunchakuZImage
 from ..utils import get_filename_list, get_full_path_or_raise
@@ -135,22 +137,35 @@ def _load(sd: dict[str, torch.Tensor], metadata: dict[str, str] = {}):
 
     model_config = NunchakuZImage(rank=rank, precision=precision, skip_refiners=skip_refiners)
 
-    unet_weight_dtype = list(model_config.supported_inference_dtypes)
+######### origin >>>>>>
+    # unet_weight_dtype = list(model_config.supported_inference_dtypes)
+    # unet_dtype = model_management.unet_dtype(
+    #     model_params=parameters, supported_dtypes=unet_weight_dtype, weight_dtype=weight_dtype
+    # )
+    # manual_cast_dtype = model_management.unet_manual_cast(
+    #     unet_dtype, load_device, model_config.supported_inference_dtypes
+    # )
+    # torch_dtype = torch.bfloat16
+######### origin <<<<<<
+######### dev >>>>>>
+    unet_dtype = torch.bfloat16
+    manual_cast_dtype = torch.float16
+    torch_dtype = torch.float16
+######### dev <<<<<<
 
-    unet_dtype = model_management.unet_dtype(
-        model_params=parameters, supported_dtypes=unet_weight_dtype, weight_dtype=weight_dtype
-    )
-
-    manual_cast_dtype = model_management.unet_manual_cast(
-        unet_dtype, load_device, model_config.supported_inference_dtypes
-    )
-
-    patched_sd = _patch_state_dict(new_sd)
+    logging.info(f">>>>> weight_dtype: {weight_dtype}, unet_dtype: {unet_dtype}, manual_cast_dtype: {manual_cast_dtype}")
 
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
-    model = model_config.get_model(patched_sd, "")
+    
+    patched_sd = _patch_state_dict(new_sd)
+    model = model_config.get_model(patched_sd, "", torch_dtype=torch_dtype)
 
     patch_scale_key(model.diffusion_model, patched_sd)
+
+    for _, module in model.diffusion_model.named_modules():
+        if isinstance(module, SVDQW4A4Linear):
+            logging.info(f">>>> SVDQW4A4Linear proj_down: {module.proj_down.dtype}, proj_up: {module.proj_up.dtype}, wscales: {module.wscales.dtype}, qweight: {module.qweight.dtype}")
+            break
 
     model.load_model_weights(patched_sd, "")
     return ModelPatcher(model, load_device=load_device, offload_device=offload_device)
