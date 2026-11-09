@@ -11,8 +11,8 @@ from comfy.ldm.lumina.model import NextDiT
 from comfy.lora import calculate_weight, model_lora_keys_unet
 from comfy.model_base import BaseModel
 from comfy.model_management import cast_to_device, lora_compute_dtype
-from comfy.model_patcher import LowVramPatch, ModelPatcher, get_key_weight, move_weight_functions, string_to_seed
-from comfy.utils import get_attr, set_attr_param
+from comfy.model_patcher import LowVramPatch, ModelPatcher, get_key_weight, move_weight_functions
+from comfy.utils import get_attr, set_attr_param, string_to_seed
 from comfy.weight_adapter.lora import LoRAAdapter
 
 from nunchaku.lora.flux.nunchaku_converter import pack_lowrank_weight, unpack_lowrank_weight
@@ -93,7 +93,7 @@ def concat_lora_weights(
 
 
 class ZImageModelPatcher(ModelPatcher):
-    def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False):
+    def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False, **kwargs):
         """
         Adapted from comfy.model_patcher.ModelPatcher#clone
 
@@ -102,7 +102,7 @@ class ZImageModelPatcher(ModelPatcher):
         + Always set `weight_inplace_update` to False
         + Add `svdq_backup` dict for loading/unloading lora weights for Nunchaku Z-Image model.
         """
-        super().__init__(model, load_device, offload_device, size, weight_inplace_update=False)
+        super().__init__(model, load_device, offload_device, size, weight_inplace_update=False, **kwargs)
         self.svdq_backup = {}
 
     def clone(self):

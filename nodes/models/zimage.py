@@ -112,7 +112,7 @@ def _load(sd: dict[str, torch.Tensor], metadata: dict[str, str] = {}):
     Returns
     -------
     comfy.model_patcher.ModelPatcher
-        The patched and loaded Qwen-Image model ready for inference.
+        The patched and loaded Z-Image model ready for inference.
     """
     quantization_config = json.loads(metadata.get("quantization_config", "{}"))
     precision = get_precision_from_quantization_config(quantization_config)

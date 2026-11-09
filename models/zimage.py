@@ -59,13 +59,19 @@ def fuse_to_svdquant_linear(comfy_linear1: nn.Linear, comfy_linear2: nn.Linear, 
     """
     assert comfy_linear1.in_features == comfy_linear2.in_features
     assert comfy_linear1.bias is None and comfy_linear2.bias is None
-    torch_dtype = kwargs.pop("torch_dtype", comfy_linear1.weight.dtype)
+    if "torch_dtype" in kwargs:
+        torch_dtype = kwargs.pop("torch_dtype")
+    elif comfy_linear1.weight is not None:
+        torch_dtype = comfy_linear1.weight.dtype
+    else:
+        raise ValueError("no valid torch_dtype for SVDQW4A4Linear")
+    device = None if comfy_linear1.weight is None else comfy_linear1.weight.device
     svdq_linear = SVDQW4A4Linear(
         comfy_linear1.in_features,
         comfy_linear1.out_features + comfy_linear2.out_features,
         bias=False,
         torch_dtype=torch_dtype,
-        device=comfy_linear1.weight.device,
+        device=device,
         **kwargs,
     )
     add_comfy_cast_weights_attr(svdq_linear, comfy_linear1)
@@ -227,6 +233,7 @@ class RopeFuseAttentionHook:
         from the original `freqs_cis` and cache it in the  `packed_freqs_cis_cache` dict.
         """
         new_input_args = list(input_args)
+        x: torch.Tensor = new_input_args[0]
         freqs_cis: torch.Tensor = new_input_args[2]
         if freqs_cis is None:
             return None
@@ -237,6 +244,9 @@ class RopeFuseAttentionHook:
             # freqs_cis shape example: torch.Size([1, 4160, 1, 64, 2, 2])
             # freqs_cis dtype: torch.float32
             freqs_cis = freqs_cis[..., [1], :].squeeze(2)  # See comfy.ldm.flux.math#rope, #apply_rope
+            freqs_cis = freqs_cis.expand(x.shape[0], -1, -1, -1, -1)  # [b, s, 64, 1, 2]
+            freqs_cis = freqs_cis.flatten(0, 1)  # [b*s, 64, 1, 2]
+            freqs_cis = freqs_cis.unsqueeze(0)  # [1, b*s, 64, 1, 2]
             packed_freqs_cis = pack_rotemb(pad_tensor(freqs_cis, 256, 1))
             self.packed_freqs_cis_cache[cache_key] = packed_freqs_cis
             logging.debug(
