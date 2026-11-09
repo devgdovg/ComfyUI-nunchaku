@@ -148,6 +148,13 @@ except ImportError:
     logger.exception("Nodes `NunchakuZImageDiTLoader` import failed:")
 
 try:
+    from .nodes.models.qwenimage21 import NunchakuQwenImage21DiTLoader
+
+    NODE_CLASS_MAPPINGS["NunchakuQwenImage21DiTLoader"] = NunchakuQwenImage21DiTLoader
+except ImportError:
+    logger.exception("Nodes `NunchakuQwenImage21DiTLoader` import failed:")
+
+try:
     from .nodes.tools.merge_safetensors import NunchakuModelMerger
 
     NODE_CLASS_MAPPINGS["NunchakuModelMerger"] = NunchakuModelMerger
